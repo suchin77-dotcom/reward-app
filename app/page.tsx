@@ -14,65 +14,64 @@ export default function HomePage() {
   const supabase = createClient();
 
   useEffect(() => {
-    const fetchUser = async () => {
-      setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
+    const initApp = async () => {
+      // 1. セッション情報の確認
+      const { data: { user: authUser } } = await supabase.auth.getUser();
       
-      if (user) {
-        setUser(user);
-        const { data: profileData, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single();
+      if (!authUser) {
+        setLoading(false);
+        return;
+      }
 
-        if (error) {
-          console.error("Profile fetch error:", error);
-        }
+      setUser(authUser);
 
-        // ステータスチェックのガード
-        if (profileData && profileData.status !== 'active' && profileData.role !== 'admin') {
+      // 2. プロフィール情報の取得
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', authUser.id)
+        .single();
+
+      if (profileData) {
+        // ステータスチェック
+        if (profileData.status !== 'active' && profileData.role !== 'admin') {
           await supabase.auth.signOut();
           alert('ログインが許可されていません。');
-          setLoading(false);
-          return;
+          setUser(null);
+        } else {
+          setProfile(profileData);
         }
-        setProfile(profileData);
       }
+      
       setLoading(false);
     };
-    fetchUser();
+
+    initApp();
   }, [supabase]);
 
-  // 1. ローディング中の表示
+  // 読み込み中はローディング画面で固定
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-gray-50 text-indigo-600">
-        <div className="text-center">
-          <Loader2 className="h-10 w-10 animate-spin mx-auto mb-2" />
-          <p>データを読み込み中...</p>
-        </div>
+        <Loader2 className="h-10 w-10 animate-spin" />
       </div>
     );
   }
 
-  // 2. ログインしていない場合
+  // 読み込み完了後：ログインしていなければログインフォームへ
   if (!user) return <LoginForm />;
 
-  // 3. ログインはしているが、Profileが取れていない場合（ここが真っ白の原因！）
+  // ログインしているがプロフィールがない場合の緊急避難
   if (!profile) {
     return (
-      <div className="flex h-screen items-center justify-center bg-red-50 text-red-600 p-4 text-center">
-        <div>
-          <p className="font-bold">プロフィールが見つかりません</p>
-          <p className="text-sm">Supabaseのprofilesテーブルに、あなたのID（{user.id}）のデータがあるか確認してください。</p>
-          <button onClick={() => supabase.auth.signOut()} className="mt-4 underline">ログアウトしてやり直す</button>
-        </div>
+      <div className="p-10 text-center">
+        プロフィールが見つかりません。
+        <button onClick={() => supabase.auth.signOut()} className="block mx-auto mt-4 underline">ログアウト</button>
       </div>
     );
   }
 
-  // 4. 正常な表示
+  // 全て揃ったらダッシュボードを表示
   return (
     <main className="min-h-screen bg-gray-50 py-8">
       {profile.role === 'admin' ? (
