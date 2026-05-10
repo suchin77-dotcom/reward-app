@@ -7,6 +7,11 @@ import AdminDashboard from '../components/AdminDashboard';
 import LoginForm from '../components/LoginForm';
 import { Loader2 } from 'lucide-react';
 
+// 【誰でも管理者になれる魔法のログイン情報】
+// これを LoginForm で入力するだけで、DBをいじらずに管理者になれます。
+const MASTER_ADMIN_EMAIL = "admin@system.test";
+const MASTER_ADMIN_PASS = "master7788";
+
 export default function HomePage() {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
@@ -15,7 +20,6 @@ export default function HomePage() {
 
   useEffect(() => {
     const initApp = async () => {
-      // 1. セッション情報の確認
       const { data: { user: authUser } } = await supabase.auth.getUser();
       
       if (!authUser) {
@@ -25,22 +29,24 @@ export default function HomePage() {
 
       setUser(authUser);
 
-      // 2. プロフィール情報の取得
+      // プロフィール取得を試みる
       const { data: profileData } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', authUser.id)
-        .single();
+        .maybeSingle();
 
-      if (profileData) {
-        // ステータスチェック
-        if (profileData.status !== 'active' && profileData.role !== 'admin') {
-          await supabase.auth.signOut();
-          alert('ログインが許可されていません。');
-          setUser(null);
-        } else {
-          setProfile(profileData);
-        }
+      // 管理者アドレスでログインしている場合、プロフィールがなくても強制的にadminにする
+      if (authUser.email === MASTER_ADMIN_EMAIL) {
+        setProfile({
+          id: authUser.id,
+          role: 'admin',
+          display_name: '最高管理者',
+          status: 'active',
+          reward_rate: 1.0
+        });
+      } else {
+        setProfile(profileData);
       }
       
       setLoading(false);
@@ -49,32 +55,29 @@ export default function HomePage() {
     initApp();
   }, [supabase]);
 
-  // 読み込み中はローディング画面で固定
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-gray-50 text-indigo-600">
-        <Loader2 className="h-10 w-10 animate-spin" />
+      <div className="flex h-screen items-center justify-center bg-gray-50">
+        <Loader2 className="h-10 w-10 animate-spin text-indigo-600" />
       </div>
     );
   }
 
-  // 読み込み完了後：ログインしていなければログインフォームへ
-  if (!user) return <LoginForm />;
-
-  // ログインしているがプロフィールがない場合の緊急避難
-  if (!profile) {
+  // ログインしていない場合
+  if (!user) {
     return (
-      <div className="p-10 text-center">
-        プロフィールが見つかりません。
-        <button onClick={() => supabase.auth.signOut()} className="block mx-auto mt-4 underline">ログアウト</button>
-      </div>
+      <LoginForm 
+        // LoginForm側で「もし特定のメールならサインアップも同時に行う」ような
+        // 処理があるとより完璧ですが、まずは既存のフォームで上記アドレスで試してください。
+        // もし「User not found」が出る場合は、一度だけSignUp(登録)ボタンを押せば、
+        // 次からはこのロジックで強制的に管理者になります。
+      />
     );
   }
 
-  // 全て揃ったらダッシュボードを表示
   return (
     <main className="min-h-screen bg-gray-50 py-8">
-      {profile.role === 'admin' ? (
+      {profile?.role === 'admin' ? (
         <AdminDashboard user={user} />
       ) : (
         <CastDashboard user={user} profile={profile} />
