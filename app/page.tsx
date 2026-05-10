@@ -4,9 +4,9 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client'; // 事前に作成済みのクライアント
 import { useRouter } from 'next/navigation';
-import CastDashboard from '@/components/CastDashboard';
-import AdminDashboard from '@/components/AdminDashboard';
-import LoginForm from '@/components/LoginForm';
+import CastDashboard from '../components/CastDashboard';
+import AdminDashboard from '../components/AdminDashboard';
+import LoginForm from '../components/LoginForm';
 import { Loader2 } from 'lucide-react';
 
 export default function HomePage() {
